@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 from google.oauth2.service_account import Credentials
 
 # スプレッドシートのIDを指定（ステップ1でコピーしたもの）
-SPREADSHEET_ID = "ここにスプレッドシートのIDを貼り付けます"
+SPREADSHEET_ID = "1G3e_DoNROJFaz15xeNe9DprOi1m-EGGjPJHp9yRWN3c/"
 
 def get_yesterday_weather():
     """昨日の気象データを取得する（先の修正版抽出ロジックを流用）"""
