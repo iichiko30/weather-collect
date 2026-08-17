@@ -12,7 +12,7 @@ from google.oauth2.service_account import Credentials
 SPREADSHEET_ID = "1G3e_DoNROJFaz15xeNe9DprOi1m-EGGjPJHp9yRWN3c"
 
 def get_yesterday_weather():
-    """昨日の気象データを取得する（先の修正版抽出ロジックを流用）"""
+    """昨日の気象データを取得する"""
     target_date = datetime.now() - timedelta(days=1)
     url = f"https://www.data.jma.go.jp/obd/stats/etrn/view/hourly_s1.php?prec_no=14&block_no=47412&year={target_date.year}&month={target_date.month}&day={target_date.day}&view="
     
@@ -20,7 +20,6 @@ def get_yesterday_weather():
     response = requests.get(url, headers=headers)
     response.encoding = response.apparent_encoding
     
-    # 以前修正した extract_hourly_data のロジックをここに組み込みます
     dfs = pd.read_html(StringIO(response.text))
     
     target_df = None
@@ -49,23 +48,67 @@ def get_yesterday_weather():
     row_16_series = target_df[target_df[hour_col].astype(str).str.contains("^16:00$|^16$")]
     row = row_16_series.iloc[0]
 
-    # 天気の取得・推測ロジック（先の修正と同じ）
+    # クレンジング関数（スプレッドシート出力用の文字列化）
+    def clean(val):
+        if pd.isna(val): return ""
+        val_str = str(val).strip().replace(']', '').replace(')', '')
+        if val_str in ['--', '///', '×', '', 'NaN', 'nan']: return ""
+        return val_str
+
+    # クレンジング関数（推測ロジックの計算用）
+    def clean_float(val):
+        c_val = clean(val)
+        if not c_val: return None
+        try:
+            return float(c_val)
+        except ValueError:
+            return None
+
+    # ==========================================
+    # 天気データの取得と強力な補完ロジック（日中の累積で判定）
+    # ==========================================
     weather_col = col_map.get("weather")
     weather_val = None
+
+    # パターンA: 16時の天気が記録されていれば採用
     if weather_col:
         raw_w = row.get(weather_col)
         if pd.notna(raw_w) and str(raw_w).strip() not in ['--', 'NaN', 'nan', '', '///', '×']:
             weather_val = str(raw_w).strip()
-    # （中略：晴れ・曇りの推測ロジックなど必要なものを配置）
+
+    # パターンB: 空欄の場合、日中（9時〜15時）の天気の最頻値を採用
+    if not weather_val and weather_col:
+        daytime_df = target_df[target_df[hour_col].astype(str).str.match('^(9|10|11|12|13|14|15)$')]
+        valid_w = daytime_df[weather_col].dropna().astype(str).str.strip()
+        valid_w = valid_w[~valid_w.isin(['--', 'NaN', 'nan', '', '///', '×'])]
+        if not valid_w.empty:
+            weather_val = valid_w.mode()[0]
+
+    # パターンC: 天気列が無い場合、日中の「降水量」と「日照時間」の合計値から推測
     if not weather_val:
-        weather_val = "調査中"
+        daytime_df = target_df[target_df[hour_col].astype(str).str.match('^(9|10|11|12|13|14|15)$')]
+        
+        total_sun = 0.0
+        total_precip = 0.0
+        mean_temp = 10.0
+        
+        if col_map.get("sunshine"):
+            total_sun = daytime_df[col_map.get("sunshine")].apply(clean_float).dropna().sum()
+            
+        if col_map.get("precip"):
+            total_precip = daytime_df[col_map.get("precip")].apply(clean_float).dropna().sum()
+            
+        if col_map.get("temp"):
+            temp_series = daytime_df[col_map.get("temp")].apply(clean_float).dropna()
+            mean_temp = temp_series.mean() if not temp_series.empty else 10.0
 
-    # クレンジング関数（必要に応じて簡易化）
-    def clean(val):
-        if pd.isna(val) or str(val).strip() in ['--', '///', '×']: return ""
-        return str(val).replace(']', '').replace(')', '').strip()
+        if total_precip > 0:
+            weather_val = "雪" if mean_temp < 3.0 else "雨"
+        elif total_sun >= 2.0:
+            weather_val = "晴"
+        else:
+            weather_val = "曇"
 
-    # スプレッドシートに追記する1行分のリスト（ヘッダーの順序に合わせる）
     return [
         target_date.strftime("%Y-%m-%d"),
         "16:00",
@@ -79,7 +122,7 @@ def get_yesterday_weather():
         clean(row.get(col_map.get("snow"))),
         clean(row.get(col_map.get("pressure")))
     ]
-
+    
 def main():
     print("気象データの取得を開始します...")
     data_row = get_yesterday_weather()
