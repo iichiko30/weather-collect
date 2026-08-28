@@ -13,8 +13,8 @@ SPREADSHEET_ID = "1G3e_DoNROJFaz15xeNe9DprOi1m-EGGjPJHp9yRWN3c"
 
 def get_yesterday_weather():
     """昨日の気象データを取得する"""
-    target_date = datetime(2026, 8, 25)
-    #target_date = datetime.now() - timedelta(days=1)
+    #target_date = datetime(2026, 8, 25)
+    target_date = datetime.now() - timedelta(days=1)
     url = f"https://www.data.jma.go.jp/obd/stats/etrn/view/hourly_s1.php?prec_no=14&block_no=47412&year={target_date.year}&month={target_date.month}&day={target_date.day}&view="
     
     headers = {"User-Agent": "Mozilla/5.0"}
