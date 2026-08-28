@@ -25,4 +25,5 @@ jobs:
       env:
         # Secretに登録したJSONを環境変数としてPythonに渡す
         GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+        TZ: 'Asia/Tokyo'
       run: python weather.py
