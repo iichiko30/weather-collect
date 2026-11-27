@@ -2,9 +2,17 @@ name: Daily Weather Scraper
 
 on:
   schedule:
-    # 毎日日本時間のAM 8:00 (UTC 23:00) に実行
     - cron: '0 23 * * *'
-  workflow_dispatch: # ボタンを押して手動でテスト実行できるようにする
+  workflow_dispatch:
+    inputs:
+      start_date:
+        description: '開始日 (YYYY-MM-DD) ※空欄なら昨日のみ'
+        required: false
+        type: string
+      end_date:
+        description: '終了日 (YYYY-MM-DD) ※空欄なら昨日のみ'
+        required: false
+        type: string
 
 jobs:
   run-scraper:
@@ -19,11 +27,12 @@ jobs:
         python-version: '3.10'
 
     - name: Install dependencies
-      run: pip install -r requirements.txt
+      run: pip install pandas gspread lxml requests
 
     - name: Run weather scraper
       env:
-        # Secretに登録したJSONを環境変数としてPythonに渡す
         GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
         TZ: 'Asia/Tokyo'
+        START_DATE: ${{ github.event.inputs.start_date }}
+        END_DATE: ${{ github.event.inputs.end_date }}
       run: python weather.py
